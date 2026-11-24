@@ -51,6 +51,26 @@
       alt: opt.alt || [],
     })),
   }));
+  // ---------- Score period ----------
+  // Scores belong to the period up to (and including) the next test day.
+  // The day after a test, a new period starts and the scoreboard is empty again.
+  function localToday() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function currentPeriod() {
+    const today = localToday();
+    const next = window.TOPICS.filter((t) => t.date && t.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+    return next ? { key: next.date, topic: next } : { key: "zomer", topic: null };
+  }
+  function periodText() {
+    const p = currentPeriod();
+    if (!p.topic) return "Na de laatste toets: dit scorebord loopt tot het nieuwe schooljaar.";
+    const days = Math.round((new Date(p.key + "T12:00:00") - new Date(localToday() + "T12:00:00")) / 86400000);
+    const when = days === 0 ? "vandaag is de toets" : days === 1 ? "nog 1 dag" : "nog " + days + " dagen";
+    return "Scorebord tot de toets " + p.topic.title + " (" + fmtDateLong(p.key) + ") — " + when + ". Daarna begint het opnieuw.";
+  }
+
   const TOPIC_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
   const ALL_ITEMS = TOPICS.flatMap((t) => t.items);
 
@@ -77,6 +97,9 @@
     const d = new Date(iso + "T12:00:00");
     return d.toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" });
   };
+  function fmtDateLong(iso) {
+    return new Date(iso + "T12:00:00").toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
+  }
   function levenshtein(a, b) {
     const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
     for (let j = 1; j <= b.length; j++) dp[0][j] = j;
@@ -556,8 +579,9 @@
       type: state.score.type,
       time,
       date: new Date().toISOString(),
+      period: currentPeriod().key,
     };
-    const scores = storage.get(STORAGE_KEY, []);
+    const scores = currentScores();
     scores.push(entry);
     storage.set(STORAGE_KEY, scores.slice(-300));
 
@@ -580,20 +604,31 @@
       .join("");
     $("sb-end-topic").textContent = state.topicTitle;
     $("sb-end").innerHTML = scoreTable(state.topicId, entry.id);
+    document.querySelectorAll(".sb-period").forEach((el) => (el.textContent = periodText()));
     show("end");
     if (pct >= 0.8) confetti();
   }
 
+  function currentScores() {
+    const key = currentPeriod().key;
+    return storage.get(STORAGE_KEY, []).filter((s) => s.period === key);
+  }
+
+  function purgeOldScores() {
+    const all = storage.get(STORAGE_KEY, []);
+    const keep = currentScores();
+    if (keep.length !== all.length) storage.set(STORAGE_KEY, keep);
+  }
+
   function sortedScores(topicId) {
-    return storage
-      .get(STORAGE_KEY, [])
+    return currentScores()
       .filter((s) => topicId === "" || s.topicId === topicId)
       .sort((a, b) => b.correct / b.total - a.correct / a.total || b.correct - a.correct || a.time - b.time);
   }
 
   function scoreTable(topicId, highlightId) {
     const list = sortedScores(topicId);
-    if (!list.length) return '<p class="sb-empty">Nog geen scores. Wees de eerste! 🚀</p>';
+    if (!list.length) return '<p class="sb-empty">Nog geen scores deze periode. Wees de eerste! 🚀</p>';
     let rows = list.slice(0, 10);
     const myIdx = list.findIndex((s) => s.id === highlightId);
     if (myIdx >= 10) rows = rows.concat([list[myIdx]]);
@@ -619,6 +654,8 @@
   }
 
   function renderStartScoreboard() {
+    purgeOldScores();
+    document.querySelectorAll(".sb-period").forEach((el) => (el.textContent = periodText()));
     $("sb-start").innerHTML = scoreTable($("sb-filter").value, null);
   }
 
@@ -640,7 +677,7 @@
   function setupStart() {
     const sel = $("sel-topic");
     const filter = $("sb-filter");
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     const upcoming = TOPICS.find((t) => t.date && t.date >= today);
     TOPICS.forEach((t) => {
       const o = document.createElement("option");
@@ -706,7 +743,7 @@
   $("btn-again").addEventListener("click", startQuiz);
   $("btn-home").addEventListener("click", goHome);
   $("btn-clear").addEventListener("click", () => {
-    if (confirm("Alle scores op dit apparaat wissen?")) {
+    if (confirm("Het scorebord van deze periode nu al wissen?")) {
       storage.set(STORAGE_KEY, []);
       renderStartScoreboard();
     }

@@ -10,7 +10,7 @@ Topografie-pubquiz voor groep 7 & 8, gebaseerd op het topoboekje 2026–2027.
 
 De tijd loopt mee tijdens de vragen. Op het scorebord staat hoeveel vragen je **in 1x goed** had
 en hoe lang je erover deed (meeste goed bovenaan, bij gelijke stand wint de snelste).
-Scores worden in de browser bewaard (alleen op dat apparaat).
+Het scorebord hoort bij de eerstvolgende toets: de dag na de toets is het weer leeg. Scores worden in de browser bewaard (alleen op dat apparaat).
 
 ## Online zetten met GitHub Pages
 1. Ga in deze repository naar **Settings → Pages**.
